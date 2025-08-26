@@ -1,75 +1,73 @@
 from pyrogram import Client, filters
-from pyrogram.session import StringSession
 from pymongo import MongoClient
-import os
 
-# ==== CONFIG ====
+# ====== CONFIG (filled) ======
 API_ID = 24597778
 API_HASH = "0b34ead62566cc7b072c0cf6b86b716e"
 BOT_TOKEN = "6050583747:AAEPVadyHjbjQw6lSFlPv66wXNgf_H5idcs"
 MONGO_URL = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+GROUP_ID = -1002591009357  # Fixed group
 
-# Fixed group jahan /run message jayega
-TARGET_GROUP = -1002591009357  
+# MongoDB connection
+mongo_client = MongoClient(MONGO_URL)
+db = mongo_client["telegram_bot"]
+collection = db["users"]
 
-# ==== INIT ====
-bot = Client("main-bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-mongo = MongoClient(MONGO_URL)
-db = mongo["string_db"]
-strings_col = db["strings"]
+# Bot Client
+bot = Client(
+    "my_bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
+)
 
-# ==== COMMANDS ====
+# ====== HANDLERS ======
 
-@bot.on_message(filters.command("add"))
-async def add_string(client, message):
-    if len(message.command) < 2:
-        return await message.reply("❌ Usage: `/add <string_session>`", quote=True)
+@bot.on_message(filters.command("start"))
+async def start_handler(client, message):
+    await message.reply_text(
+        "✅ Bot is running!\n\n"
+        "📌 Commands:\n"
+        "/start - Check bot status\n"
+        "/run - Send test message in group\n"
+        "/save <text> - Save something to DB\n"
+        "/get - Fetch your saved data\n"
+    )
 
-    string = message.text.split(" ", 1)[1]
-    strings_col.insert_one({"string": string})
-    await message.reply("✅ String session added successfully!", quote=True)
-
-@bot.on_message(filters.command("list"))
-async def list_strings(client, message):
-    all_strings = list(strings_col.find())
-    if not all_strings:
-        return await message.reply("ℹ️ No string sessions saved.", quote=True)
-
-    msg = "📌 **Saved String Sessions:**\n"
-    for i, s in enumerate(all_strings, start=1):
-        msg += f"{i}. `{s['string'][:15]}...`\n"
-
-    await message.reply(msg, quote=True)
 
 @bot.on_message(filters.command("run"))
-async def run_message(client, message):
+async def run_handler(client, message):
+    try:
+        await bot.send_message(GROUP_ID, "⚡ Bot test message via /run command!")
+        await message.reply_text("✅ Done! Message sent to group.")
+    except Exception as e:
+        await message.reply_text(f"❌ Failed: {e}")
+
+
+@bot.on_message(filters.command("save"))
+async def save_handler(client, message):
     if len(message.command) < 2:
-        return await message.reply("❌ Usage: `/run <text>`", quote=True)
-
-    text = message.text.split(" ", 1)[1]
-    all_strings = list(strings_col.find())
-    if not all_strings:
-        return await message.reply("⚠️ No string sessions saved.", quote=True)
-
-    sent, failed = 0, 0
-    for s in all_strings:
-        try:
-            user = Client(
-                name="user",
-                api_id=API_ID,
-                api_hash=API_HASH,
-                session_string=s["string"]
-            )
-            await user.start()
-            await user.send_message(TARGET_GROUP, text)
-            await user.stop()
-            sent += 1
-        except Exception as e:
-            print(e)
-            failed += 1
-
-    await message.reply(f"✅ Done!\n\nSent: {sent}\nFailed: {failed}", quote=True)
+        return await message.reply_text("❌ Usage: /save <text>")
+    
+    data = " ".join(message.command[1:])
+    collection.update_one(
+        {"user_id": message.from_user.id},
+        {"$set": {"data": data}},
+        upsert=True
+    )
+    await message.reply_text("✅ Your data has been saved!")
 
 
-print("🤖 Bot started...")
-bot.run()
+@bot.on_message(filters.command("get"))
+async def get_handler(client, message):
+    user_data = collection.find_one({"user_id": message.from_user.id})
+    if user_data and "data" in user_data:
+        await message.reply_text(f"📂 Saved Data:\n\n{user_data['data']}")
+    else:
+        await message.reply_text("❌ No data found. Use /save to add some.")
+
+
+# ====== RUN ======
+if __name__ == "__main__":
+    print("🚀 Bot Started...")
+    bot.run()
