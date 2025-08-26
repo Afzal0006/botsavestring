@@ -1,73 +1,72 @@
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pymongo import MongoClient
 
-# ====== CONFIG (filled) ======
+# ==== CONFIG ====
 API_ID = 24597778
 API_HASH = "0b34ead62566cc7b072c0cf6b86b716e"
 BOT_TOKEN = "6050583747:AAEPVadyHjbjQw6lSFlPv66wXNgf_H5idcs"
 MONGO_URL = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-GROUP_ID = -1002591009357  # Fixed group
+GROUP_ID = -1002591009357
 
-# MongoDB connection
-mongo_client = MongoClient(MONGO_URL)
-db = mongo_client["telegram_bot"]
-collection = db["users"]
+# ==== MONGO CONNECT ====
+mongo = MongoClient(MONGO_URL)
+db = mongo["UserbotDB"]
+sessions = db["sessions"]
 
-# Bot Client
+# ==== BOT CLIENT ====
 bot = Client(
-    "my_bot",
+    "bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN
 )
 
-# ====== HANDLERS ======
-
-@bot.on_message(filters.command("start"))
-async def start_handler(client, message):
-    await message.reply_text(
-        "✅ Bot is running!\n\n"
-        "📌 Commands:\n"
-        "/start - Check bot status\n"
-        "/run - Send test message in group\n"
-        "/save <text> - Save something to DB\n"
-        "/get - Fetch your saved data\n"
-    )
-
-
-@bot.on_message(filters.command("run"))
-async def run_handler(client, message):
-    try:
-        await bot.send_message(GROUP_ID, "⚡ Bot test message via /run command!")
-        await message.reply_text("✅ Done! Message sent to group.")
-    except Exception as e:
-        await message.reply_text(f"❌ Failed: {e}")
-
-
-@bot.on_message(filters.command("save"))
-async def save_handler(client, message):
+# ==== /save command ====
+@bot.on_message(filters.command("save", prefixes="/"))
+async def save_session(client, message):
     if len(message.command) < 2:
-        return await message.reply_text("❌ Usage: /save <text>")
-    
-    data = " ".join(message.command[1:])
-    collection.update_one(
-        {"user_id": message.from_user.id},
-        {"$set": {"data": data}},
+        return await message.reply_text("❌ Usage: `/save STRING_SESSION`")
+
+    string_session = message.command[1]
+    user_id = message.from_user.id
+
+    sessions.update_one(
+        {"user_id": user_id},
+        {"$set": {"string_session": string_session}},
         upsert=True
     )
-    await message.reply_text("✅ Your data has been saved!")
 
+    await message.reply_text("✅ String Session saved successfully!")
 
-@bot.on_message(filters.command("get"))
-async def get_handler(client, message):
-    user_data = collection.find_one({"user_id": message.from_user.id})
-    if user_data and "data" in user_data:
-        await message.reply_text(f"📂 Saved Data:\n\n{user_data['data']}")
-    else:
-        await message.reply_text("❌ No data found. Use /save to add some.")
+# ==== /run command ====
+@bot.on_message(filters.command("run", prefixes="/"))
+async def run_handler(client, message):
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/run your_message`")
 
+    user_id = message.from_user.id
+    record = sessions.find_one({"user_id": user_id})
 
-# ====== RUN ======
-if __name__ == "__main__":
-    print("🚀 Bot Started...")
-    bot.run()
+    if not record:
+        return await message.reply_text("❌ No session found! Use `/save STRING_SESSION` first.")
+
+    string_session = record["string_session"]
+    text_to_send = message.text.split(" ", 1)[1]
+
+    # Userbot client create karega
+    userbot = Client(
+        name=f"userbot_{user_id}",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        session_string=string_session
+    )
+
+    await userbot.start()
+    await userbot.send_message(GROUP_ID, text_to_send)
+    await userbot.stop()
+
+    await message.reply_text("✅ Message sent from your Userbot!")
+
+# ==== START ====
+print("✅ Bot Running...")
+bot.run()
