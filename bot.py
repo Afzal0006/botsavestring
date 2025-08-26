@@ -1,109 +1,95 @@
 from pyrogram import Client, filters
+from pyrogram.types import Message
+from pyrogram.sessions import StringSession
 from pymongo import MongoClient
-import asyncio
 
-# ========== CONFIG ==========
+# ==== CONFIG ====
 API_ID = 24597778
 API_HASH = "0b34ead62566cc7b072c0cf6b86b716e"
 BOT_TOKEN = "6050583747:AAEPVadyHjbjQw6lSFlPv66wXNgf_H5idcs"
+MONGO_URI = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-MONGO_URL = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-DB_NAME = "multi_session_bot"
-COLLECTION = "sessions"
-# ============================
+GROUP_ID = -1002591009357  # Sirf is group me msg jayega
 
-# Telegram Bot client
-bot = Client("main_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# ==== INIT ====
+app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+mongo = MongoClient(MONGO_URI)
+db = mongo["string_db"]
+sessions_collection = db["sessions"]
 
-# MongoDB client
-mongo = MongoClient(MONGO_URL)
-db = mongo[DB_NAME]
-sessions = db[COLLECTION]
+# ==== COMMANDS ====
 
-# /start
-@bot.on_message(filters.command("start") & filters.private)
-async def start_cmd(_, msg):
-    await msg.reply_text(
-        "👋 Bot ready hai!\n\nCommands:\n"
-        "/add <string_session>\n"
-        "/list\n"
-        "/remove <index>\n"
-        "/run <your message>"
-    )
+@app.on_message(filters.command("add", prefixes="/"))
+async def add_string(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("Usage: /add <string_session>")
+        return
 
-# /add {string_session}
-@bot.on_message(filters.command("add") & filters.private)
-async def add_session(_, msg):
-    if len(msg.command) < 2:
-        return await msg.reply_text("⚠ Usage: `/add <string_session>`")
+    string = message.text.split(" ", 1)[1]
+    sessions_collection.insert_one({"string": string})
+    await message.reply("✅ String session saved successfully!")
 
-    string_session = msg.text.split(" ", 1)[1]
 
-    if sessions.find_one({"string": string_session}):
-        return await msg.reply_text("❌ Ye session pehle se saved hai.")
+@app.on_message(filters.command("list", prefixes="/"))
+async def list_strings(client, message: Message):
+    accounts = sessions_collection.find()
+    msg = "Saved Sessions:\n"
+    for i, acc in enumerate(accounts, start=1):
+        msg += f"{i}. {acc['string'][:20]}...\n"
+    await message.reply(msg if msg != "Saved Sessions:\n" else "❌ No sessions saved.")
 
-    sessions.insert_one({"string": string_session})
-    await msg.reply_text("✅ String session saved successfully!")
 
-# /list
-@bot.on_message(filters.command("list") & filters.private)
-async def list_sessions(_, msg):
-    all_sessions = list(sessions.find({}))
-    if not all_sessions:
-        return await msg.reply_text("⚠ Koi session saved nahi hai.")
-    
-    text = "📂 Saved Sessions:\n\n"
-    for i, s in enumerate(all_sessions, 1):
-        text += f"{i}. {s['string'][:25]}...\n"
-    await msg.reply_text(text)
-
-# /remove {index}
-@bot.on_message(filters.command("remove") & filters.private)
-async def remove_session(_, msg):
-    if len(msg.command) < 2:
-        return await msg.reply_text("⚠ Usage: `/remove <index>`")
+@app.on_message(filters.command("remove", prefixes="/"))
+async def remove_string(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("Usage: /remove <index>")
+        return
 
     try:
-        index = int(msg.command[1]) - 1
+        index = int(message.command[1]) - 1
+        accounts = list(sessions_collection.find())
+        if index < 0 or index >= len(accounts):
+            await message.reply("❌ Invalid index.")
+            return
+
+        sessions_collection.delete_one({"_id": accounts[index]["_id"]})
+        await message.reply("✅ Session removed successfully!")
     except ValueError:
-        return await msg.reply_text("⚠ Index number do.")
+        await message.reply("❌ Please provide a valid index.")
 
-    all_sessions = list(sessions.find({}))
-    if index < 0 or index >= len(all_sessions):
-        return await msg.reply_text("⚠ Invalid index.")
 
-    target = all_sessions[index]
-    sessions.delete_one({"_id": target["_id"]})
+@app.on_message(filters.command("run", prefixes="/"))
+async def run_command(client, message: Message):
+    if len(message.command) < 2:
+        await message.reply("Usage: /run <your message>")
+        return
 
-    await msg.reply_text("✅ Session removed successfully!")
+    text = message.text.split(" ", 1)[1]
+    accounts = sessions_collection.find()
+    total_sent, total_failed = 0, 0
 
-# /run {message}
-@bot.on_message(filters.command("run") & filters.private)
-async def run_message(_, msg):
-    if len(msg.command) < 2:
-        return await msg.reply_text("⚠ Usage: `/run <your message>`")
-
-    text_to_send = msg.text.split(" ", 1)[1]
-
-    all_sessions = list(sessions.find({}))
-    if not all_sessions:
-        return await msg.reply_text("⚠ Koi session saved nahi hai.")
-
-    success, fail = 0, 0
-
-    for s in all_sessions:
+    for acc in accounts:
         try:
-            user = Client(s["string"], api_id=API_ID, api_hash=API_HASH)
-            await user.start()
-            # Test: send to Saved Messages
-            await user.send_message("me", text_to_send)
-            await user.stop()
-            success += 1
-        except Exception as e:
-            print("Error:", e)
-            fail += 1
+            app_client = Client(
+                StringSession(acc['string']),
+                api_id=API_ID,
+                api_hash=API_HASH
+            )
+            await app_client.start()
 
-    await msg.reply_text(f"✅ Done!\n\nSent: {success}\nFailed: {fail}")
+            try:
+                await app_client.send_message(GROUP_ID, text)
+                total_sent += 1
+            except Exception:
+                total_failed += 1
 
-print("Bot started...")
-bot.run()
+            await app_client.stop()
+        except Exception:
+            total_failed += 1
+
+    await message.reply(f"✅ Done!\nSent: {total_sent}\nFailed: {total_failed}")
+
+
+# ==== RUN BOT ====
+print("🤖 Bot started...")
+app.run()
