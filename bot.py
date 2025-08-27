@@ -4,7 +4,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 # === CONFIG ===
 API_ID = 24203893
 API_HASH = "6ba29d5fb7d359fe9afb138ea89873b4"
-BOT_TOKEN = "8460250495:AAGbzw7JoQMm47HTiA3tzak-VjeVYXKbBcA"  # Replace with your BOT_TOKEN if needed
+BOT_TOKEN = "8357734886:AAHJ0N1CHSvcSXbvIwoqREX3r_bOVyqvH0A"  # Replace with your BOT_TOKEN if needed
 CHANNEL_ID = "@TrustlyEscrow"  # Channel username
 GROUP_JOIN_LINK = "https://t.me/TrustlyEscrow"  # Join button link
 
