@@ -1,46 +1,37 @@
-import os
 from pyrogram import Client, filters
-from pymongo import MongoClient
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-# ==== CONFIG ====
-API_ID = 24597778
-API_HASH = "0b34ead62566cc7b072c0cf6b86b716e"
-BOT_TOKEN = "6050583747:AAEPVadyHjbjQw6lSFlPv66wXNgf_H5idcs"
-GROUP_ID = -1002591009357
+# === CONFIG ===
+API_ID = 24203893
+API_HASH = "6ba29d5fb7d359fe9afb138ea89873b4"
+BOT_TOKEN = "8357734886:AAGSfpBQZufnd_PtTsgFSX92UiS1i0iKDbQ"
+GROUP_JOIN_LINK = "https://t.me/TrustlyEscrow"
 
-MONGO_URL = "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-mongo = MongoClient(MONGO_URL)
-db = mongo["userbot"]
-col = db["strings"]
+# Bot client
+app = Client("join_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# ==== BOT CLIENT ====
-bot = Client("mybot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# Set to store joined users
+joined_users = set()
 
-# ==== SAVE COMMAND ====
-@bot.on_message(filters.command("save"))
-async def save_string(client, message):
-    if len(message.command) < 2:
-        return await message.reply("❌ Usage: /save <string_session>")
-    
-    string_session = message.text.split(" ", 1)[1]
-    col.update_one({"_id": "session"}, {"$set": {"string": string_session}}, upsert=True)
-    await message.reply("✅ String session saved successfully!")
+# Detect when someone joins the group
+@app.on_message(filters.new_chat_members)
+async def new_member(client, message):
+    for user in message.new_chat_members:
+        joined_users.add(user.id)  # Add to joined users set
+    # Bot does nothing else on join
 
-# ==== RUN COMMAND ====
-@bot.on_message(filters.command("run"))
-async def run_command(client, message):
-    data = col.find_one({"_id": "session"})
-    if not data:
-        return await message.reply("❌ No session found. Use /save first.")
-    
-    string_session = data["string"]
+# Handle every message in group
+@app.on_message(filters.group)
+async def message_handler(client, message):
+    user_id = message.from_user.id if message.from_user else None
+    if user_id and user_id not in joined_users and not message.from_user.is_bot:
+        # Inline button with group join link
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Please Join This Group", url=GROUP_JOIN_LINK)]]
+        )
+        await message.reply_text(
+            f"Hey @{message.from_user.username if message.from_user.username else message.from_user.first_name}, please join this group!",
+            reply_markup=keyboard
+        )
 
-    try:
-        async with Client("userbot", api_id=API_ID, api_hash=API_HASH, session_string=string_session) as userbot:
-            await userbot.send_message(GROUP_ID, "⚡ Ye message USERBOT se bheja gaya hai!")
-        await message.reply("✅ Message sent via userbot.")
-    except Exception as e:
-        await message.reply(f"❌ Error: {e}")
-
-print("Bot Started...")
-bot.run()
+app.run()
