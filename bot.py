@@ -5,8 +5,8 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 API_ID = 24203893
 API_HASH = "6ba29d5fb7d359fe9afb138ea89873b4"
 BOT_TOKEN = "8466069044:AAFaAtC5qDnZI8p8QkxsHOONKdjhJCKdRmk"  # Replace with your BOT_TOKEN if needed
-CHANNEL_ID = "@TrustlyEscrow"  # Channel username
-GROUP_JOIN_LINK = "https://t.me/TrustlyEscrow"  # Join button link
+CHANNEL_ID = "@SexyEmoji"  # Channel username
+GROUP_JOIN_LINK = "https://t.me/SexyEmoji"  # Join button link
 
 app = Client("check_channel_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
