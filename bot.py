@@ -4,7 +4,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 # === CONFIG ===
 API_ID = 24203893
 API_HASH = "6ba29d5fb7d359fe9afb138ea89873b4"
-BOT_TOKEN = "8466069044:AAFaAtC5qDnZI8p8QkxsHOONKdjhJCKdRmk"  # Replace with your BOT_TOKEN if needed
+BOT_TOKEN = "8357734886:AAHQi1zmj9q8B__7J-2dyYUWVTQrMRr65Dc"  # Replace with your BOT_TOKEN if needed
 CHANNEL_ID = "@SexyEmoji"  # Channel username
 GROUP_JOIN_LINK = "https://t.me/SexyEmoji"  # Join button link
 
